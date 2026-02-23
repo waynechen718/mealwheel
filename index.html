@@ -10,6 +10,7 @@ canvas { background: white; border-radius: 50%; margin-top: 20px; }
 #result { margin-top: 20px; font-size: 22px; font-weight: bold; }
 .arrow { font-size: 40px; margin-top: 10px; }
 small { display:block; margin-top:5px; color:#555;}
+button { cursor:pointer; }
 </style>
 </head>
 <body>
@@ -48,6 +49,7 @@ let currentRotation = 0;
 const canvas = document.getElementById("wheel");
 const ctx = canvas.getContext("2d");
 
+// ================= FETCH DATA =================
 async function fetchSheet() {
   const response = await fetch(SHEET_URL);
   const data = await response.text();
@@ -72,6 +74,7 @@ async function fetchSheet() {
   drawWheel();
 }
 
+// ================= FILTERS =================
 function populateFilters() {
   const cuisines = [...new Set(restaurants.map(r => r.cuisine))];
   const areas = [...new Set(restaurants.map(r => r.area))];
@@ -104,13 +107,14 @@ function applyFilters() {
     (!outdoor || r.outdoor)
   );
 
-  drawWheel();
+  currentRotation = 0;
   document.getElementById("result").textContent = "";
+  drawWheel();
 }
 
+// ================= DRAW WHEEL =================
 function drawWheel() {
-  ctx.setTransform(1,0,0,1,0,0);
-  ctx.clearRect(0,0,canvas.width,canvas.height);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
 
   const count = filteredRestaurants.length;
   if (count === 0) {
@@ -123,23 +127,23 @@ function drawWheel() {
 
   filteredRestaurants.forEach((r, i) => {
     ctx.beginPath();
-    ctx.moveTo(200,200);
-    ctx.arc(200,200,200,i*angle,(i+1)*angle);
-    ctx.fillStyle = `hsl(${i*360/count},70%,60%)`;
+    ctx.moveTo(200, 200);
+    ctx.arc(200, 200, 200, i * angle, (i + 1) * angle);
+    ctx.fillStyle = `hsl(${i * 360 / count}, 70%, 60%)`;
     ctx.fill();
 
     ctx.save();
-    ctx.translate(200,200);
-    ctx.rotate(i*angle + angle/2);
+    ctx.translate(200, 200);
+    ctx.rotate(i * angle + angle / 2);
     ctx.textAlign = "right";
     ctx.fillStyle = "black";
     ctx.font = "14px Arial";
-    ctx.fillText(`${r.name} (${r.rating}⭐)`,180,5);
+    ctx.fillText(`${r.name} (${r.rating}⭐)`, 180, 5);
     ctx.restore();
   });
 }
 
-// ⭐ WEIGHTED RANDOM SELECTION
+// ================= WEIGHTED RANDOM =================
 function weightedRandomChoice(list) {
   const totalWeight = list.reduce((sum, r) => sum + r.rating, 0);
   let random = Math.random() * totalWeight;
@@ -150,33 +154,40 @@ function weightedRandomChoice(list) {
   }
 }
 
+// ================= SPIN =================
 function spinWheel() {
   if (filteredRestaurants.length === 0) return;
 
   const winner = weightedRandomChoice(filteredRestaurants);
+  const index = filteredRestaurants.indexOf(winner);
 
-  const index = filteredRestaurants.findIndex(r => r.name === winner.name);
   const sliceAngle = 360 / filteredRestaurants.length;
-  const targetAngle = (360 - index * sliceAngle) + 720;
+
+  // Calculate exact angle so winner lands at top (arrow)
+  const targetRotation =
+    360 * 5 + (360 - index * sliceAngle - sliceAngle / 2);
 
   const spinDuration = 3000;
   const start = performance.now();
   const initialRotation = currentRotation;
 
   function animate(now) {
-    const progress = Math.min((now-start)/spinDuration,1);
-    const ease = 1 - Math.pow(1-progress,3);
-    currentRotation = initialRotation + (targetAngle * ease);
+    const progress = Math.min((now - start) / spinDuration, 1);
+    const ease = 1 - Math.pow(1 - progress, 3);
 
-    ctx.setTransform(1,0,0,1,0,0);
-    ctx.translate(200,200);
-    ctx.rotate(currentRotation*Math.PI/180);
-    ctx.translate(-200,-200);
+    currentRotation = initialRotation +
+      (targetRotation - initialRotation) * ease;
+
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.translate(200, 200);
+    ctx.rotate(currentRotation * Math.PI / 180);
+    ctx.translate(-200, -200);
 
     drawWheel();
 
-    if(progress<1) requestAnimationFrame(animate);
-    else {
+    if (progress < 1) {
+      requestAnimationFrame(animate);
+    } else {
       document.getElementById("result").textContent =
         `🎉 Tonight: ${winner.name} (${winner.rating}⭐)!`;
     }
